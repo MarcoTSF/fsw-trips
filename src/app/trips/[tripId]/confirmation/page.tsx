@@ -13,6 +13,7 @@ import Button from "@/components/Button";
 
 import { Trip } from "@prisma/client";
 import { toast } from "react-toastify";
+import { loadStripe } from "@stripe/stripe-js";
 
 const TripConfirmation = ({ params }: { params: { tripId: string } }) => {
   const [trip, setTrip] = useState<Trip | null>();
@@ -26,7 +27,7 @@ const TripConfirmation = ({ params }: { params: { tripId: string } }) => {
 
   useEffect(() => {
     const fetchTrip = async () => {
-      const response = await fetch(`http://localhost:3000/api/trips/check`, {
+      const response = await fetch(`/api/trips/check`, {
         method: "POST",
         body: JSON.stringify({
           tripId: params.tripId,
@@ -55,7 +56,7 @@ const TripConfirmation = ({ params }: { params: { tripId: string } }) => {
   if (!trip) return null;
 
   const handleBuyClick = async () => {
-    const res = await fetch("http://localhost:3000/api/trips/reservation", {
+    const res = await fetch("/api/payment", {
       method: "POST",
       body: Buffer.from(
         JSON.stringify({
@@ -63,8 +64,10 @@ const TripConfirmation = ({ params }: { params: { tripId: string } }) => {
           startDate: searchParams.get("startDate"),
           endDate: searchParams.get("endDate"),
           guests: Number(searchParams.get("guests")),
-          userId: (data?.user as any)?.id!,
-          totalPaid: totalPrice,
+          totalPrice,
+          coverImage: trip.coverImage,
+          name: trip.name,
+          description: trip.description,
         })
       ),
     });
@@ -73,7 +76,11 @@ const TripConfirmation = ({ params }: { params: { tripId: string } }) => {
       return toast.error("Ocorreu um erro ao realizar a reserva!", { position: "bottom-center" });
     }
 
-    router.push("/");
+    const { sessionId } = await res.json();
+
+    const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY as string);
+
+    await stripe?.redirectToCheckout({ sessionId });
 
     toast.success("Reserva realizada com sucesso!", { position: "bottom-center" });
   };
@@ -83,7 +90,7 @@ const TripConfirmation = ({ params }: { params: { tripId: string } }) => {
   const guests = searchParams.get("guests");
 
   return (
-    <div className="container mx-auto p-5">
+    <div className="container mx-auto p-5 lg:max-w-[600px]">
       <h1 className="font-semibold text-xl text-primaryDarker">Sua viagem</h1>
 
       {/* CARD */}
